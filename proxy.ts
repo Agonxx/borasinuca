@@ -2,8 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_ROUTES = ["/login", "/signup"];
-const ONBOARDING_ROUTE = "/onboarding";
-const APP_ROUTES = ["/home", "/sortear", "/partidas", "/ranking", "/bolao"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -29,50 +27,25 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession lê apenas o cookie — sem chamada de rede
+  // A validação real (getUser) acontece em cada página
+  const { data: { session } } = await supabase.auth.getSession();
   const { pathname } = request.nextUrl;
 
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/home", request.url));
   }
 
-  // Não autenticado → login
-  if (!user && !PUBLIC_ROUTES.includes(pathname)) {
+  if (!session && !PUBLIC_ROUTES.includes(pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Autenticado tentando acessar login → home
-  if (user && PUBLIC_ROUTES.includes(pathname)) {
+  if (session && PUBLIC_ROUTES.includes(pathname)) {
     return NextResponse.redirect(new URL("/home", request.url));
   }
 
-  // Autenticado em rota do app → checar se tem grupo
-  if (user && APP_ROUTES.some(r => pathname.startsWith(r))) {
-    const { data: membership } = await supabase
-      .from("group_members")
-      .select("id")
-      .eq("player_id", user.id)
-      .limit(1)
-      .single();
-
-    if (!membership) {
-      return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url));
-    }
-  }
-
-  // No onboarding mas já tem grupo → home
-  if (user && pathname === ONBOARDING_ROUTE) {
-    const { data: membership } = await supabase
-      .from("group_members")
-      .select("id")
-      .eq("player_id", user.id)
-      .limit(1)
-      .single();
-
-    if (membership) {
-      return NextResponse.redirect(new URL("/home", request.url));
-    }
-  }
+  // Checagem de grupo removida do middleware — cada página já redireciona
+  // para /onboarding se o usuário não tiver grupo (via getMembership)
 
   return supabaseResponse;
 }
