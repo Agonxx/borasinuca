@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BolaoClient } from "./BolaoClient";
 import { redirect } from "next/navigation";
 import { getUser, getMembership } from "@/lib/data";
+import { perfStart } from "@/lib/perf";
 
 interface BolaoWithMatch {
   id: string;
@@ -19,11 +20,14 @@ interface BolaoWithMatch {
 }
 
 export default async function BolaoPage() {
+  const lap = perfStart("bolao");
   const user = await getUser();
+  lap("getUser");
   if (!user) return null;
 
   const supabase = await createClient();
   const membership = await getMembership(user.id);
+  lap("membership");
   if (!membership) redirect("/onboarding");
 
   // Paralelo: membros + bolões com dados da partida embutidos (1 query ao invés de 3)
@@ -42,6 +46,7 @@ export default async function BolaoPage() {
       .order("created_at", { ascending: false })
       .limit(30),
   ]);
+  lap("members+bolaos (parallel)");
 
   const profileMap: Record<string, string> = {};
   (membersResult.data ?? []).forEach((m) => {
@@ -60,6 +65,7 @@ export default async function BolaoPage() {
           .eq("player_id", user.id)
           .in("bolao_id", bolaoIds)
       : { data: [] };
+  lap("myBets");
 
   const betMap: Record<
     string,
@@ -68,6 +74,7 @@ export default async function BolaoPage() {
   (myBets ?? []).forEach((b) => {
     betMap[b.bolao_id] = b;
   });
+  lap("done");
 
   return (
     <BolaoClient

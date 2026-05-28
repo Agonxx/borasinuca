@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Avatar, Card, Stat, Pill } from "@/components/ui";
 import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
+import { perfStart } from "@/lib/perf";
 
 interface Profile { id: string; name: string }
 interface GroupMember { role: string; coins: number; group_id: string }
@@ -48,7 +49,9 @@ function formatOpponent(match: Match, userId: string, profiles: Record<string, s
 }
 
 export default async function HomePage() {
+  const lap = perfStart("home");
   const [user, token] = await Promise.all([getUser(), getAccessToken()]);
+  lap("getUser+token");
   if (!user) return null;
 
   const supabase = await createClient();
@@ -58,6 +61,7 @@ export default async function HomePage() {
     supabase.from("profiles").select("id, name").eq("id", user.id).single<Profile>(),
     getMembership(user.id),
   ]);
+  lap("profile+membership");
 
   if (!profile || !membership) return null;
 
@@ -66,12 +70,14 @@ export default async function HomePage() {
     .select("id, name, invite_code")
     .eq("id", membership.group_id)
     .single<GroupInfo & { invite_code: string }>();
+  lap("groupInfo");
 
   // Partidas do grupo + membros (cache cross-request, 30s TTL)
   const [allMatches, members] = await Promise.all([
     getCachedMatches(membership.group_id, token),
     getCachedGroupMembers(membership.group_id, token),
   ]);
+  lap("matches+members (cache)");
 
   const profileMap: Record<string, string> = {};
   members.forEach((m) => {
@@ -86,6 +92,7 @@ export default async function HomePage() {
   const isAdmin = membership.role === "owner" || membership.role === "admin";
   const firstName = profile.name.split(" ")[0];
   const memberCount = members.length;
+  lap("done");
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-4">

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui";
 import { redirect } from "next/navigation";
 import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
+import { perfStart } from "@/lib/perf";
 
 interface Match {
   team_a: string[];
@@ -44,16 +45,20 @@ function calcH2H(matches: Match[], me: string, other: string) {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default async function RankingPage() {
+  const lap = perfStart("ranking");
   const [user, token] = await Promise.all([getUser(), getAccessToken()]);
+  lap("getUser+token");
   if (!user) return null;
 
   const membership = await getMembership(user.id);
+  lap("membership");
   if (!membership) redirect("/onboarding");
 
   const [members, allMatches] = await Promise.all([
     getCachedGroupMembers(membership.group_id, token),
     getCachedMatches(membership.group_id, token),
   ]);
+  lap("members+matches (cache)");
 
   const ranked = members
     .map((m) => {
@@ -63,6 +68,7 @@ export default async function RankingPage() {
       return { id: m.player_id, name, role: m.role, coins: m.coins, ...stats };
     })
     .sort((a, b) => b.coins - a.coins || b.wins - a.wins);
+  lap("done");
 
   return (
     <div className="flex flex-col gap-3 p-4">

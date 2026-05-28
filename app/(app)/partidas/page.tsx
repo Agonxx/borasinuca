@@ -3,6 +3,7 @@ import { Avatar } from "@/components/ui";
 import { redirect } from "next/navigation";
 import { MatchAdminActions } from "./MatchAdminActions";
 import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
+import { perfStart } from "@/lib/perf";
 
 interface Match {
   id: number;
@@ -35,11 +36,14 @@ function TeamRow({ playerIds, profiles }: { playerIds: string[]; profiles: Recor
 }
 
 export default async function PartidasPage() {
+  const lap = perfStart("partidas");
   const [user, token] = await Promise.all([getUser(), getAccessToken()]);
+  lap("getUser+token");
   if (!user) return null;
 
   const supabase = await createClient();
   const membership = await getMembership(user.id);
+  lap("membership");
   if (!membership) redirect("/onboarding");
 
   const isAdmin = membership.role === "owner" || membership.role === "admin";
@@ -48,6 +52,7 @@ export default async function PartidasPage() {
     getCachedMatches(membership.group_id, token),
     getCachedGroupMembers(membership.group_id, token),
   ]);
+  lap("matches+members (cache)");
 
   const profileMap: Record<string, string> = {};
   members.forEach((m) => {
@@ -63,9 +68,11 @@ export default async function PartidasPage() {
         .select("match_id, status")
         .in("match_id", matchIds)
     : { data: [] };
+  lap("bolaos por partida");
 
   const bolaoByMatch: Record<number, string> = {};
   (bolaos ?? []).forEach((b) => { bolaoByMatch[b.match_id] = b.status; });
+  lap("done");
 
   return (
     <div className="flex flex-col gap-3 p-4">
