@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Avatar, Card, Stat, Pill } from "@/components/ui";
+import { Avatar, Card, Stat, Pill, CopyCode } from "@/components/ui";
 import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
 import { perfStart } from "@/lib/perf";
 
@@ -127,10 +127,7 @@ export default async function HomePage() {
               <span className="text-[20px] font-bold">{allMatches.length}</span>
               <span className="text-[9px] text-text-faint uppercase tracking-wider mt-0.5">partidas</span>
             </div>
-            <div className="flex-1 flex flex-col items-center py-1.5 bg-surface-2 rounded-[10px]">
-              <span className="text-[13px] font-bold font-mono text-mint">{groupInfo?.invite_code ?? "—"}</span>
-              <span className="text-[9px] text-text-faint uppercase tracking-wider mt-0.5">convite</span>
-            </div>
+            <CopyCode code={groupInfo?.invite_code ?? "—"} />
           </div>
         </div>
       )}

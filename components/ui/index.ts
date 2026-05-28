@@ -1,4 +1,5 @@
 export { Btn } from "./Btn";
+export { CopyCode } from "./CopyCode";
 export { Avatar } from "./Avatar";
 export { Card } from "./Card";
 export { Pill } from "./Pill";

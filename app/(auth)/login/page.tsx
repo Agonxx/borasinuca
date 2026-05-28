@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -40,6 +41,7 @@ export default function LoginPage() {
         if (error) throw error;
         router.push("/home");
         router.refresh();
+        // Mantém loading=true enquanto a navegação acontece
       } else {
         if (!name.trim()) throw new Error("Digite seu nome");
         const { error } = await supabase.auth.signUp({
@@ -54,7 +56,6 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro desconhecido";
       setError(translateError(msg));
-    } finally {
       setLoading(false);
     }
   }
@@ -154,7 +155,14 @@ export default function LoginPage() {
             disabled={loading}
             className="mt-1 w-full"
           >
-            {loading ? "Aguarda..." : mode === "login" ? "Entrar" : "Criar conta"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                {mode === "login" ? "Entrando..." : "Criando conta..."}
+              </span>
+            ) : (
+              mode === "login" ? "Entrar" : "Criar conta"
+            )}
           </Btn>
 
           <div className="flex items-center gap-3 my-1">
@@ -168,14 +176,23 @@ export default function LoginPage() {
             variant="secondary"
             size="lg"
             className="w-full"
+            disabled={googleLoading}
             onClick={async () => {
+              setGoogleLoading(true);
               await supabase.auth.signInWithOAuth({
                 provider: "google",
                 options: { redirectTo: `${window.location.origin}/auth/callback` },
               });
             }}
           >
-            Continuar com Google
+            {googleLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Redirecionando...
+              </span>
+            ) : (
+              "Continuar com Google"
+            )}
           </Btn>
         </form>
 
