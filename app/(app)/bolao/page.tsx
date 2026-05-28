@@ -16,6 +16,7 @@ interface BolaoWithMatch {
     team_a: string[];
     team_b: string[];
     winner_side: "A" | "B" | null;
+    group_id: string;
   };
 }
 
