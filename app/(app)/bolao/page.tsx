@@ -54,7 +54,9 @@ export default async function BolaoPage() {
     if (p) profileMap[m.player_id] = (p as { name: string }).name;
   });
 
-  const bolaos = ((bolaosResult.data ?? []).filter((b) => b.match)) as BolaoWithMatch[];
+  const bolaos = (bolaosResult.data ?? [])
+    .map((b) => ({ ...b, match: Array.isArray(b.match) ? b.match[0] : b.match }))
+    .filter((b): b is BolaoWithMatch => !!b.match);
   const bolaoIds = bolaos.map((b) => b.id);
 
   const { data: myBets } =
