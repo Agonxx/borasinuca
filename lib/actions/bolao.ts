@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export async function createBolao(formData: FormData) {
   const matchId = parseInt(formData.get("match_id") as string);
@@ -24,7 +24,6 @@ export async function createBolao(formData: FormData) {
 
   revalidatePath("/partidas");
   revalidatePath("/bolao");
-  revalidateTag("match-data");
 }
 
 export async function placeBet(formData: FormData) {
@@ -53,5 +52,4 @@ export async function placeBet(formData: FormData) {
   if (result?.error) return { error: result.error };
 
   revalidatePath("/bolao");
-  revalidateTag("group-data");
 }
