@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function registerMatch(formData: FormData) {
   const groupId = formData.get("group_id") as string;
@@ -45,6 +45,7 @@ export async function registerMatch(formData: FormData) {
     return { error: matchError.message };
   }
 
+  revalidateTag("match-data");
   redirect("/partidas");
 }
 
@@ -87,5 +88,7 @@ export async function registerResult(formData: FormData) {
   revalidatePath("/bolao");
   revalidatePath("/home");
   revalidatePath("/ranking");
+  revalidateTag("match-data");
+  revalidateTag("group-data");
   redirect("/partidas");
 }

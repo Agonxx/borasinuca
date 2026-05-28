@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui";
 import { redirect } from "next/navigation";
+import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
 
 interface Match {
   team_a: string[];
@@ -43,33 +44,18 @@ function calcH2H(matches: Match[], me: string, other: string) {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default async function RankingPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const [user, token] = await Promise.all([getUser(), getAccessToken()]);
   if (!user) return null;
 
-  const { data: membership } = await supabase
-    .from("group_members")
-    .select("group_id")
-    .eq("player_id", user.id)
-    .limit(1)
-    .single();
-
+  const membership = await getMembership(user.id);
   if (!membership) redirect("/onboarding");
 
-  const [{ data: members }, { data: matches }] = await Promise.all([
-    supabase
-      .from("group_members")
-      .select("player_id, role, coins, profiles(id, name)")
-      .eq("group_id", membership.group_id),
-    supabase
-      .from("matches")
-      .select("team_a, team_b, winner_side")
-      .eq("group_id", membership.group_id),
+  const [members, allMatches] = await Promise.all([
+    getCachedGroupMembers(membership.group_id, token),
+    getCachedMatches(membership.group_id, token),
   ]);
 
-  const allMatches: Match[] = matches ?? [];
-
-  const ranked = (members ?? [])
+  const ranked = members
     .map((m) => {
       const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
       const name = (p as { name: string } | null)?.name ?? "?";

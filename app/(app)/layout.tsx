@@ -1,23 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/ui/AppHeader";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { getUser, getMembership } from "@/lib/data";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
 
   let coins: number | undefined;
   let userName: string | undefined;
   let isAdmin = false;
 
   if (user) {
-    const [{ data: memberData }, { data: profileData }] = await Promise.all([
-      supabase.from("group_members").select("coins, role").eq("player_id", user.id).limit(1).single(),
-      supabase.from("profiles").select("name").eq("id", user.id).single(),
+    const [membership, { data: profileData }] = await Promise.all([
+      getMembership(user.id),
+      createClient().then(sb => sb.from("profiles").select("name").eq("id", user.id).single()),
     ]);
-    coins = memberData?.coins;
+    coins = membership?.coins;
+    isAdmin = membership?.role === "owner" || membership?.role === "admin";
     userName = profileData?.name ?? user.user_metadata?.name ?? user.email?.split("@")[0];
-    isAdmin = memberData?.role === "owner" || memberData?.role === "admin";
   }
 
   return (

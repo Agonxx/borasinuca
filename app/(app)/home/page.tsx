@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Avatar, Card, Stat, Pill } from "@/components/ui";
+import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
 
 interface Profile { id: string; name: string }
 interface GroupMember { role: string; coins: number; group_id: string }
@@ -47,14 +48,15 @@ function formatOpponent(match: Match, userId: string, profiles: Record<string, s
 }
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const [user, token] = await Promise.all([getUser(), getAccessToken()]);
   if (!user) return null;
 
+  const supabase = await createClient();
+
   // Dados do perfil e grupo
-  const [{ data: profile }, { data: membership }] = await Promise.all([
+  const [{ data: profile }, membership] = await Promise.all([
     supabase.from("profiles").select("id, name").eq("id", user.id).single<Profile>(),
-    supabase.from("group_members").select("role, coins, group_id").eq("player_id", user.id).limit(1).single<GroupMember>(),
+    getMembership(user.id),
   ]);
 
   if (!profile || !membership) return null;
@@ -65,24 +67,14 @@ export default async function HomePage() {
     .eq("id", membership.group_id)
     .single<GroupInfo & { invite_code: string }>();
 
-  // Partidas do grupo + membros (paralelo)
-  const [{ data: matches }, { data: members }] = await Promise.all([
-    supabase
-      .from("matches")
-      .select("id, format, team_a, team_b, winner_side, played_at")
-      .eq("group_id", membership.group_id)
-      .order("played_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("group_members")
-      .select("player_id, profiles(id, name)")
-      .eq("group_id", membership.group_id),
+  // Partidas do grupo + membros (cache cross-request, 30s TTL)
+  const [allMatches, members] = await Promise.all([
+    getCachedMatches(membership.group_id, token),
+    getCachedGroupMembers(membership.group_id, token),
   ]);
 
-  const allMatches: Match[] = matches ?? [];
-
   const profileMap: Record<string, string> = {};
-  (members ?? []).forEach((m) => {
+  members.forEach((m) => {
     const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
     if (p) profileMap[m.player_id] = (p as { name: string }).name;
   });
@@ -93,6 +85,7 @@ export default async function HomePage() {
 
   const isAdmin = membership.role === "owner" || membership.role === "admin";
   const firstName = profile.name.split(" ")[0];
+  const memberCount = members.length;
 
   return (
     <div className="flex flex-col gap-3 p-4 pb-4">
@@ -120,7 +113,7 @@ export default async function HomePage() {
           <div className="text-[10px] font-bold text-text-faint uppercase tracking-[1px]">Visão geral do grupo</div>
           <div className="flex items-center gap-3">
             <div className="flex-1 flex flex-col items-center py-1.5 bg-surface-2 rounded-[10px]">
-              <span className="text-[20px] font-bold">{(members ?? []).length}</span>
+              <span className="text-[20px] font-bold">{memberCount}</span>
               <span className="text-[9px] text-text-faint uppercase tracking-wider mt-0.5">membros</span>
             </div>
             <div className="flex-1 flex flex-col items-center py-1.5 bg-surface-2 rounded-[10px]">

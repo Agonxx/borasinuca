@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/ui";
 import { redirect } from "next/navigation";
 import { MatchAdminActions } from "./MatchAdminActions";
+import { getUser, getMembership, getAccessToken, getCachedGroupMembers, getCachedMatches } from "@/lib/data";
 
 interface Match {
   id: number;
@@ -34,41 +35,25 @@ function TeamRow({ playerIds, profiles }: { playerIds: string[]; profiles: Recor
 }
 
 export default async function PartidasPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const [user, token] = await Promise.all([getUser(), getAccessToken()]);
   if (!user) return null;
 
-  const { data: membership } = await supabase
-    .from("group_members")
-    .select("group_id, role")
-    .eq("player_id", user.id)
-    .limit(1)
-    .single();
-
+  const supabase = await createClient();
+  const membership = await getMembership(user.id);
   if (!membership) redirect("/onboarding");
 
   const isAdmin = membership.role === "owner" || membership.role === "admin";
 
-  const [{ data: matches }, { data: members }] = await Promise.all([
-    supabase
-      .from("matches")
-      .select("id, format, team_a, team_b, winner_side, played_at")
-      .eq("group_id", membership.group_id)
-      .order("played_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("group_members")
-      .select("player_id, profiles(id, name)")
-      .eq("group_id", membership.group_id),
+  const [allMatches, members] = await Promise.all([
+    getCachedMatches(membership.group_id, token),
+    getCachedGroupMembers(membership.group_id, token),
   ]);
 
   const profileMap: Record<string, string> = {};
-  (members ?? []).forEach((m) => {
+  members.forEach((m) => {
     const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
     if (p) profileMap[m.player_id] = (p as { name: string }).name;
   });
-
-  const allMatches: Match[] = matches ?? [];
 
   // Bolões existentes (para saber quais partidas já têm bolão)
   const matchIds = allMatches.map((m) => m.id);
